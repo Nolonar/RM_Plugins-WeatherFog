@@ -1,5 +1,5 @@
 # N_WeatherFog
-Adds fog weather effects.
+Adds procedurally generated fog weather effect.
 
 - The fog is procedurally generated and fluidly animated.
 - The fog does not follow the player around.
