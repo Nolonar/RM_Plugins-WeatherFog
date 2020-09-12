@@ -39,16 +39,32 @@
  * @max 8
  * @default 4
  * 
+ * @param xScale
+ * @text X scaling
+ * @desc The scaling of the fog map in horizontal direction. Higher values make the fog look more spread out.
+ * @type number
+ * @min 0
+ * @decimals 3
+ * @default 4
+ * 
+ * @param yScale
+ * @text Y scaling
+ * @desc The scaling of the fog map in vertical direction. Higher values make the fog look more spread out.
+ * @type number
+ * @min 0
+ * @decimals 3
+ * @default 1.5
+ * 
  * @command fog
  * @text Fog
  * @desc Changes current weather to fog. Use the "Set Weather Effect..." event command to remove the fog again.
  * 
  * @arg intensity
  * @text Intensity
- * @desc The intensity of the fog. At 0, the fog is invisible.
+ * @desc The intensity of the fog. At 0, the fog is invisible. Values over 1 are possible, but not recommended.
  * @type number
  * @min 0
- * @max 1
+ * @decimals 3
  * @default 0.75
  * 
  * @arg fadeInDuration
@@ -65,7 +81,7 @@
  * @default true
  * 
  * 
- * @help Version 1.0.0
+ * @help Version 1.0.1
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -81,6 +97,8 @@
 
     let parameters = PluginManager.parameters(PLUGIN_NAME);
     parameters.fogQuality = Math.floor(Number(parameters.fogQuality)) || 4;
+    parameters.xScale = Number(parameters.xScale) || 4;
+    parameters.yScale = Number(parameters.yScale) || 1.5;
 
     PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, function (args) {
         args.intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
@@ -105,10 +123,10 @@
                 isActive: false,
                 uniforms: {
                     uTime: 0,
-                    uX: 0,
-                    uY: 0,
-                    intensity: 0,
-                    opacity: 0
+                    uOriginX: 0,
+                    uOriginY: 0,
+                    uIntensity: 0,
+                    uOpacity: 0
                 },
                 filter: null
             };
@@ -145,13 +163,13 @@
             const posDelta = this.correctOriginDelta(this.getOriginDelta());
 
             this.fog.uniforms.uTime = now / 1000;
-            this.fog.uniforms.uX += posDelta.x;
-            this.fog.uniforms.uY += posDelta.y;
-            this.fog.uniforms.intensity = $gameScreen._weatherPowerTarget;
+            this.fog.uniforms.uOriginX += posDelta.x;
+            this.fog.uniforms.uOriginY += posDelta.y;
+            this.fog.uniforms.uIntensity = $gameScreen._weatherPowerTarget;
 
             const fadeTimeLeft = fogTargetTime - now;
             const opacity = fadeTimeLeft ? (fogFadeDuration - fadeTimeLeft) / fogFadeDuration : 1;
-            this.fog.uniforms.opacity = opacity.clamp(0, 1);
+            this.fog.uniforms.uOpacity = opacity.clamp(0, 1);
         }
 
         rememberOrigin() {
@@ -184,6 +202,10 @@
 
         get fogFragment() {
             // Perlin noise shader implementation taken from https://observablehq.com/@mbostock/perlin-noise/2
+            const scale = {
+                x: parameters.xScale,//Number.isInteger(parameters.xScale) ? parameters.xScale.toFixed(1) : parameters.xScale,
+                y: parameters.yScale//Number.isInteger(parameters.yScale) ? parameters.yScale.toFixed(1) : parameters.yScale
+            };
             return `
             precision highp float;
 
@@ -191,14 +213,14 @@
             uniform sampler2D uSampler;
 
             uniform float uTime;
-            uniform float uX;
-            uniform float uY;
-            uniform float intensity;
-            uniform float opacity;
+            uniform float uOriginX;
+            uniform float uOriginY;
+            uniform float uIntensity;
+            uniform float uOpacity;
 
             const int octaves = ${parameters.fogQuality};
             const float persistence = 0.5;
-            const vec2 noiseScale = vec2(4.0, 1.5);
+            const vec2 noiseScale = vec2(${scale.x}, ${scale.y});
 
             vec3 mod289(vec3 x) {
                 return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -275,10 +297,10 @@
 
             void main() {
                 vec4 sample = texture2D(uSampler, vTextureCoord);
-                vec2 coord = gl_FragCoord.xy + vec2(uX, uY);
+                vec2 coord = gl_FragCoord.xy + vec2(uOriginX, uOriginY);
                 vec4 noise = vec4(vec3((onoise(vec3(coord * 0.01, uTime / 4.0)) + 1.0) / 2.0), 1.0);
 
-                gl_FragColor = sample + noise * intensity * opacity;
+                gl_FragColor = sample + noise * uIntensity * uOpacity;
             }`;
         }
     }
