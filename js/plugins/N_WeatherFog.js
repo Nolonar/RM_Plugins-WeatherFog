@@ -81,7 +81,7 @@
  * @default true
  * 
  * 
- * @help Version 1.0.1
+ * @help Version 1.0.2
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -100,51 +100,80 @@
     parameters.xScale = Number(parameters.xScale) || 4;
     parameters.yScale = Number(parameters.yScale) || 1.5;
 
+    const fog = {
+        isActive: false,
+        uniforms: {
+            uTime: 0,
+            uOriginX: 0,
+            uOriginY: 0,
+            uIntensity: 0,
+            uOpacity: 0
+        },
+        filter: null,
+        fadeDuration: 0,
+        fadeTargetTime: 0,
+        fadeTimeout: null,
+        isFadingIn: false,
+        isFadingOut: false
+    };
+
     PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, function (args) {
         args.intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
         args.fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 1000);
         args.isWait = args.isWait !== "false";
 
         $gameScreen.changeWeather(WEATHER_TYPE_FOG, args.intensity, 0);
-        fogFadeDuration = args.fadeInDuration;
-        fogTargetTime = performance.now() + fogFadeDuration;
+        setFogFadeDuration(args.fadeInDuration);
+        fog.uniforms.uIntensity = args.intensity;
+        fog.isFadingIn = true;
 
-        if (args.isWait)
-            this.wait(60 * args.fadeInDuration / 1000);
+        if (args.isWait) // Convert duration from milliseconds to frame count.
+            this.wait(args.fadeInDuration * 60 / 1000);
     });
 
-    let fogTargetTime = 0;
-    let fogFadeDuration = 0;
+    function setFogFadeDuration(duration) {
+        fog.fadeDuration = duration;
+        fog.fadeTargetTime = performance.now() + duration;
+    }
+
     Weather = class Weather_Ext extends Weather {
         initialize() {
             super.initialize();
 
-            this.fog = {
-                isActive: false,
-                uniforms: {
-                    uTime: 0,
-                    uOriginX: 0,
-                    uOriginY: 0,
-                    uIntensity: 0,
-                    uOpacity: 0
-                },
-                filter: null
-            };
-            this.fog.filter = new PIXI.Filter(null, this.fogFragment, this.fog.uniforms);
+            fog.filter = new PIXI.Filter(null, this.fogFragment, fog.uniforms);
         }
 
         _updateAllSprites() {
-            if (this.type === WEATHER_TYPE_FOG) {
-                this._updateFogSprite();
+            if (this.type !== WEATHER_TYPE_FOG) {
+                super._updateAllSprites();
                 return;
             }
 
-            this.fog.isActive = false;
-            SceneManager._scene._spriteset.filters.remove(this.fog.filter);
-            super._updateAllSprites();
+            if ($gameScreen._weatherPowerTarget) {
+                clearTimeout(fog.fadeTimeout);
+                fog.isFadingOut = false;
+            }
+            else {
+                this.startFogFadeout();
+            }
+
+            this.updateFog();
         }
 
-        _updateFogSprite() {
+        startFogFadeout() {
+            if (fog.isFadingOut)
+                return;
+
+            fog.isFadingOut = true;
+            // Convert duration from frame count to milliseconds.
+            setFogFadeDuration($gameScreen._weatherDuration / 60 * 1000);
+            fog.fadeTimeout = setTimeout(() => {
+                SceneManager._scene._spriteset.filters.remove(fog.filter);
+                fog.isActive = fog.isFadingOut = false;
+            }, fog.fadeDuration);
+        }
+
+        updateFog() {
             this.tilemap = SceneManager._scene._spriteset._tilemap;
             if (!this.previousOrigin)
                 this.rememberOrigin();
@@ -152,24 +181,35 @@
             this.updateFogUniforms();
             this.rememberOrigin();
 
-            if (!this.fog.isActive)
-                SceneManager._scene._spriteset.filters.push(this.fog.filter);
+            if (!fog.isActive)
+                SceneManager._scene._spriteset.filters.push(fog.filter);
 
-            this.fog.isActive = true;
+            fog.isActive = true;
         }
 
         updateFogUniforms() {
             const now = performance.now();
             const posDelta = this.correctOriginDelta(this.getOriginDelta());
 
-            this.fog.uniforms.uTime = now / 1000;
-            this.fog.uniforms.uOriginX += posDelta.x;
-            this.fog.uniforms.uOriginY += posDelta.y;
-            this.fog.uniforms.uIntensity = $gameScreen._weatherPowerTarget;
+            fog.uniforms.uTime = now / 1000;
+            fog.uniforms.uOriginX += posDelta.x;
+            fog.uniforms.uOriginY += posDelta.y;
 
-            const fadeTimeLeft = fogTargetTime - now;
-            const opacity = fadeTimeLeft ? (fogFadeDuration - fadeTimeLeft) / fogFadeDuration : 1;
-            this.fog.uniforms.uOpacity = opacity.clamp(0, 1);
+            if (fog.isFadingIn || fog.isFadingOut)
+                this.updateFogOpacity(now);
+        }
+
+        updateFogOpacity(now) {
+            const fadeTimeLeft = fog.fadeTargetTime - now;
+            let opacity = fog.fadeDuration ? (fog.fadeDuration - fadeTimeLeft) / fog.fadeDuration : 1;
+            opacity = opacity.clamp(0, 1);
+
+            if (fog.isFadingOut)
+                opacity = 1 - opacity;
+            else if (fog.isFadingIn)
+                fog.isFadingIn = opacity < 1;
+
+            fog.uniforms.uOpacity = opacity;
         }
 
         rememberOrigin() {
