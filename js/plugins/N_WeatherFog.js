@@ -39,21 +39,27 @@
  * @max 8
  * @default 4
  * 
+ * @param fogSpeed
+ * @text Fog speed
+ * @desc The speed at which the fog moves. If 0, the fog will not move at all.
+ * @type number
+ * @min 0
+ * @decimals 3
+ * @default 0.25
+ * 
  * @param xScale
  * @text X scaling
  * @desc The scaling of the fog map in horizontal direction. Higher values make the fog look more spread out.
  * @type number
- * @min 0
- * @decimals 3
- * @default 4
+ * @min 1
+ * @default 400
  * 
  * @param yScale
  * @text Y scaling
  * @desc The scaling of the fog map in vertical direction. Higher values make the fog look more spread out.
  * @type number
- * @min 0
- * @decimals 3
- * @default 1.5
+ * @min 1
+ * @default 150
  * 
  * @command fog
  * @text Fog
@@ -81,7 +87,7 @@
  * @default true
  * 
  * 
- * @help Version 1.1.0
+ * @help Version 1.2.0
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -97,8 +103,9 @@
 
     let parameters = PluginManager.parameters(PLUGIN_NAME);
     parameters.fogQuality = Math.floor(Number(parameters.fogQuality)) || 4;
-    parameters.xScale = Number(parameters.xScale) || 4;
-    parameters.yScale = Number(parameters.yScale) || 1.5;
+    parameters.fogSpeed = parameters.fogSpeed === "0" ? 0 : (Number(parameters.fogSpeed) || 2);
+    parameters.xScale = Number(parameters.xScale) || 400;
+    parameters.yScale = Number(parameters.yScale) || 150;
 
     PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, function (args) {
         args.intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
@@ -151,7 +158,7 @@
         updateFogUniforms() {
             const posDelta = this.correctOriginDelta(this.originDelta);
 
-            fog.uniforms.uTime = performance.now() / 1000;
+            fog.uniforms.uTime = performance.now() / 1000 * parameters.fogSpeed;
             fog.uniforms.uOrigin.x += posDelta.x;
             fog.uniforms.uOrigin.y += posDelta.y;
             fog.uniforms.uIntensity = fog.fadeDuration ? this.getFogIntensity() : fog.targetIntensity;
@@ -217,7 +224,7 @@
             uniform float uIntensity;
 
             const int octaves = ${parameters.fogQuality};
-            const vec3 noiseScale = vec3(${parameters.xScale}, ${parameters.yScale}, 1.0);
+            const vec2 noiseScale = vec2(${parameters.xScale}, ${parameters.yScale});
 
             vec4 permute(vec4 x) {
                 return mod((x * 34.0 + 1.0) * x, 289.0);
@@ -275,7 +282,7 @@
                 float amplitude = 1.0;
                 float maxValue = 0.0;
                 for (int i = 0; i < octaves; i++) {
-                    total += snoise(v / noiseScale * frequency) * amplitude;
+                    total += snoise(v * frequency) * amplitude;
                     maxValue += amplitude;
                     amplitude *= 0.5;
                     frequency *= 2.0;
@@ -286,7 +293,7 @@
             void main() {
                 vec4 sample = texture2D(uSampler, vTextureCoord);
                 vec2 coord = gl_FragCoord.xy + uOrigin;
-                vec4 noise = vec4(vec3((onoise(vec3(coord * 0.01, uTime / 4.0)) + 1.0) / 2.0), 1.0);
+                vec4 noise = vec4(vec3((onoise(vec3(coord / noiseScale, uTime)) + 1.0) / 2.0), 1.0);
 
                 gl_FragColor = sample + noise * uIntensity;
             }`;
