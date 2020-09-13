@@ -67,12 +67,12 @@
  * @decimals 3
  * @default 0.75
  * 
- * @arg fadeInDurationMs
+ * @arg fadeInDuration
  * @text Fade-in duration
- * @desc How long (in ms) until the fog is at full intensity.
+ * @desc How many frames until the fog is at full intensity.
  * @type number
  * @min 0
- * @default 1000
+ * @default 60
  * 
  * @arg isWait
  * @text Wait for completion
@@ -81,7 +81,7 @@
  * @default true
  * 
  * 
- * @help Version 1.0.3
+ * @help Version 1.1.0
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -100,66 +100,29 @@
     parameters.xScale = Number(parameters.xScale) || 4;
     parameters.yScale = Number(parameters.yScale) || 1.5;
 
-    const fog = {
-        uniforms: {
-            uTime: 0,
-            uOriginX: 0,
-            uOriginY: 0,
-            uIntensity: 0,
-            uOpacity: 0
-        },
-        filter: null,
-        fadeDurationMs: 0,
-        fadeTargetTime: 0,
-        fadeTimeout: null,
-        isFadingIn: false,
-        isFadingOut: false
-    };
-
     PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, function (args) {
         args.intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
-        args.fadeInDurationMs = args.fadeInDurationMs === "0" ? 0 : (Number(args.fadeInDurationMs) || 1000);
+        args.fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
         args.isWait = args.isWait !== "false";
 
-        const duration = msToFrames(args.fadeInDurationMs);
-        $gameScreen.changeWeather(WEATHER_TYPE_FOG, args.intensity, duration);
-
+        $gameScreen.changeWeather(WEATHER_TYPE_FOG, args.intensity, args.fadeInDuration);
         if (args.isWait)
-            this.wait(duration);
+            this.wait(args.fadeInDuration);
     });
-
-    function setFogFadeDurationFrames(durationFrames) {
-        return setFogFadeDurationMs(framesToMs(durationFrames));
-    }
-    function setFogFadeDurationMs(durationMs) {
-        fog.fadeDurationMs = durationMs;
-        fog.fadeTargetTime = performance.now() + durationMs;
-    }
-
-    function msToFrames(ms) {
-        return ms * 60 / 1000;
-    }
-    function framesToMs(frames) {
-        return frames / 60 * 1000;
-    }
 
     let Game_Screen_changeWeather = Game_Screen.prototype.changeWeather;
     Game_Screen.prototype.changeWeather = function (type, power, duration) {
-        Game_Screen_changeWeather.call(this, type, power, duration);
-        if (type === WEATHER_TYPE_FOG) {
-            setFogFadeDurationFrames(duration);
-            fog.uniforms.uIntensity = power;
-            fog.isFadingIn = true;
-        }
+        const isChangingToFog = type === WEATHER_TYPE_FOG;
+        Game_Screen_changeWeather.call(this, isChangingToFog ? "none" : type, power, duration);
+
+        fog.targetIntensity = isChangingToFog ? power : 0;
+        fog.fadeDuration = isChangingToFog || fog.isActive ? duration : 0;
     }
 
     Weather = class Weather_Ext extends Weather {
-        initialize() {
-            super.initialize();
-
-            fog.filter = new PIXI.Filter(null, this.fogFragment, fog.uniforms);
-        }
-
+        get mapSpriteset() { return SceneManager._scene._spriteset; }
+        get mapFilters() { return this.mapSpriteset.filters; }
+        get tilemap() { return this.mapSpriteset._tilemap; }
         get originDelta() {
             return {
                 x: this.tilemap.origin.x - this.previousOrigin.x,
@@ -167,75 +130,37 @@
             };
         }
 
-        get mapFilters() {
-            return SceneManager._scene._spriteset.filters;
-        }
-
         _updateAllSprites() {
-            if (this.type !== WEATHER_TYPE_FOG) {
-                super._updateAllSprites();
-                return;
-            }
-
-            if ($gameScreen._weatherPowerTarget) {
-                clearTimeout(fog.fadeTimeout);
-                fog.isFadingOut = false;
-            }
-            else {
-                this.startFogFadeout();
-            }
-
+            super._updateAllSprites();
             this.updateFog();
         }
 
-        startFogFadeout() {
-            if (fog.isFadingOut)
-                return;
-
-            fog.isFadingOut = true;
-            setFogFadeDurationFrames($gameScreen._weatherDuration);
-            fog.fadeTimeout = setTimeout(() => {
-                this.mapFilters.remove(fog.filter);
-                fog.isFadingOut = false;
-            }, fog.fadeDurationMs);
-        }
-
         updateFog() {
-            this.tilemap = SceneManager._scene._spriteset._tilemap;
             if (!this.previousOrigin)
                 this.rememberOrigin();
 
             this.updateFogUniforms();
             this.rememberOrigin();
 
-            if (!this.mapFilters.some(f => f === fog.filter))
+            if (!fog.isActive)
+                this.mapFilters.remove(fog.filter)
+            else if (!this.mapFilters.some(f => f === fog.filter))
                 this.mapFilters.push(fog.filter);
         }
 
         updateFogUniforms() {
-            const now = performance.now();
             const posDelta = this.correctOriginDelta(this.originDelta);
 
-            fog.uniforms.uTime = now / 1000;
-            fog.uniforms.uOriginX += posDelta.x;
-            fog.uniforms.uOriginY += posDelta.y;
-
-            if (fog.isFadingIn || fog.isFadingOut)
-                this.updateFogOpacity(now);
+            fog.uniforms.uTime = performance.now() / 1000;
+            fog.uniforms.uOrigin.x += posDelta.x;
+            fog.uniforms.uOrigin.y += posDelta.y;
+            fog.uniforms.uIntensity = fog.fadeDuration ? this.getFogIntensity() : fog.targetIntensity;
         }
 
-        updateFogOpacity(now) {
-            const fadeTimeLeft = fog.fadeTargetTime - now;
-            let opacity = fog.fadeDurationMs ? (fog.fadeDurationMs - fadeTimeLeft) / fog.fadeDurationMs : 1;
-            opacity = opacity.clamp(0, 1);
-
-            if (fog.isFadingOut)
-                opacity = 1 - opacity;
-            else if (fog.isFadingIn)
-                fog.isFadingIn = opacity < 1;
-
-            fog.uniforms.uOpacity = opacity;
-            console.log(`${opacity} = ${fog.fadeDurationMs} - ${fadeTimeLeft} / ${fog.fadeDurationMs}`);
+        getFogIntensity() {
+            const d = fog.fadeDuration--;
+            const t = fog.targetIntensity;
+            return (fog.uniforms.uIntensity * (d - 1) + t) / d;
         }
 
         rememberOrigin() {
@@ -258,28 +183,41 @@
 
             return posDelta;
         }
+    }
 
-        get fogFragment() {
-            // Perlin noise shader implementation taken from https://observablehq.com/@mbostock/perlin-noise/2
-            const scale = {
-                x: parameters.xScale,//Number.isInteger(parameters.xScale) ? parameters.xScale.toFixed(1) : parameters.xScale,
-                y: parameters.yScale//Number.isInteger(parameters.yScale) ? parameters.yScale.toFixed(1) : parameters.yScale
+    const fog = new class WeatherFog {
+        constructor() {
+            this.uniforms = {
+                uTime: 0,
+                uOrigin: {
+                    x: 0,
+                    y: 0
+                },
+                uIntensity: 0
             };
-            return `
-            precision highp float;
+            this.filter = new PIXI.Filter(null, this.fragment, this.uniforms);
+            this.targetIntensity = 0;
+            this.fadeDuration = 0;
+        }
+
+        get isActive() {
+            return !!this.uniforms.uIntensity;
+        }
+
+        get fragment() {
+            // Perlin noise shader implementation taken from
+            // https://observablehq.com/@mbostock/perlin-noise/2
+            return `precision highp float;
 
             varying vec2 vTextureCoord;
             uniform sampler2D uSampler;
 
             uniform float uTime;
-            uniform float uOriginX;
-            uniform float uOriginY;
+            uniform vec2 uOrigin;
             uniform float uIntensity;
-            uniform float uOpacity;
 
             const int octaves = ${parameters.fogQuality};
-            const float persistence = 0.5;
-            const vec2 noiseScale = vec2(${scale.x}, ${scale.y});
+            const vec3 noiseScale = vec3(${parameters.xScale}, ${parameters.yScale}, 1.0);
 
             vec3 mod289(vec3 x) {
                 return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -346,9 +284,9 @@
                 float amplitude = 1.0;
                 float maxValue = 0.0;
                 for (int i = 0; i < octaves; i++) {
-                    total += snoise(vec3(v.x / noiseScale.x, v.y / noiseScale.y, v.z) * frequency) * amplitude;
+                    total += snoise(v / noiseScale * frequency) * amplitude;
                     maxValue += amplitude;
-                    amplitude *= persistence;
+                    amplitude *= 0.5;
                     frequency *= 2.0;
                 }
                 return total / maxValue;
@@ -356,11 +294,11 @@
 
             void main() {
                 vec4 sample = texture2D(uSampler, vTextureCoord);
-                vec2 coord = gl_FragCoord.xy + vec2(uOriginX, uOriginY);
+                vec2 coord = gl_FragCoord.xy + uOrigin;
                 vec4 noise = vec4(vec3((onoise(vec3(coord * 0.01, uTime / 4.0)) + 1.0) / 2.0), 1.0);
 
-                gl_FragColor = sample + noise * uIntensity * uOpacity;
+                gl_FragColor = sample + noise * uIntensity;
             }`;
         }
-    }
+    }();
 })();
