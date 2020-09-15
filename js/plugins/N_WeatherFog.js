@@ -87,7 +87,7 @@
  * @default true
  * 
  * 
- * @help Version 1.2.0
+ * @help Version 1.2.1
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -129,11 +129,10 @@
     Weather = class Weather_Ext extends Weather {
         get mapSpriteset() { return SceneManager._scene._spriteset; }
         get mapFilters() { return this.mapSpriteset.filters; }
-        get tilemap() { return this.mapSpriteset._tilemap; }
         get originDelta() {
             return {
-                x: this.tilemap.origin.x - this.previousOrigin.x,
-                y: this.tilemap.origin.y - this.previousOrigin.y
+                x: this.origin.x - this.previousOrigin.x,
+                y: this.origin.y - this.previousOrigin.y
             };
         }
 
@@ -172,15 +171,16 @@
 
         rememberOrigin() {
             this.previousOrigin = {
-                x: this.tilemap.origin.x,
-                y: this.tilemap.origin.y
+                x: this.origin.x,
+                y: this.origin.y
             };
         }
 
         correctOriginDelta(posDelta) {
+            const tilemap = this.mapSpriteset._tilemap;
             const scale = {
-                x: this.tilemap._tileWidth,
-                y: this.tilemap._tileHeight
+                x: tilemap?._tileWidth,
+                y: tilemap?._tileHeight
             }
             for (const axis of ["x", "y"]) {
                 const dpf = $gamePlayer.distancePerFrame() * scale[axis];
