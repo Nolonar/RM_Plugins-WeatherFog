@@ -87,7 +87,7 @@
  * @default true
  * 
  * 
- * @help Version 1.2.1
+ * @help Version 1.2.2
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -108,13 +108,13 @@
     parameters.yScale = Number(parameters.yScale) || 150;
 
     PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, function (args) {
-        args.intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
-        args.fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
-        args.isWait = args.isWait !== "false";
+        const intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
+        const fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
+        const isWait = args.isWait !== "false";
 
-        $gameScreen.changeWeather(WEATHER_TYPE_FOG, args.intensity, args.fadeInDuration);
-        if (args.isWait)
-            this.wait(args.fadeInDuration);
+        $gameScreen.changeWeather(WEATHER_TYPE_FOG, intensity, fadeInDuration);
+        if (isWait)
+            this.wait(fadeInDuration);
     });
 
     let Game_Screen_changeWeather = Game_Screen.prototype.changeWeather;
