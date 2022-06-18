@@ -87,7 +87,7 @@
  * @default true
  * 
  * 
- * @help Version 1.3.0
+ * @help Version 1.3.1
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -169,7 +169,7 @@
     } else {
         // RPG Maker MV
         const Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
-        Game_Interpreter.prototype.pluginCommand = (command, args) => {
+        Game_Interpreter.prototype.pluginCommand = function (command, args) {
             if (command.toLowerCase() === WEATHER_TYPE_FOG) {
                 const arg = {
                     intensity: args[0],
