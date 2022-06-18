@@ -67,7 +67,7 @@
  * 
  * @arg intensity
  * @text Intensity
- * @desc The intensity of the fog. At 0, the fog is invisible. Values over 1 are possible, but not recommended.
+ * @desc The intensity of the fog. 0 = invisible, 1 = visible. Values over 1 are possible, but not recommended.
  * @type number
  * @min 0
  * @decimals 3
@@ -87,13 +87,33 @@
  * @default true
  * 
  * 
- * @help Version 1.2.2
+ * @help Version 1.3.0
  * ============================================================================
  * Plugin Commands
  * ============================================================================
- * Fog
+ * fog [intensity] [fadeInDuration] [wait]
  *      Changes current weather to fog. Use the "Set Weather Effect..." event
  *      command to remove the fog again.
+ * 
+ *     [intensity]: The intensity of the fog.  0 = invisible, 1 = visible.
+ *                  Values over 1 are possible, but not recommended.
+ *                  Negative values are not allowed.
+ * 
+ *     [fadeInDuration]: How many frames until the fog is at full intensity.
+ *                       Must be greater or equal to 0.
+ * 
+ *     [wait]:      Whether the event will wait until fog is at full intensity
+ *                  before resuming. Must be either true or false.
+ * 
+ *     Example:
+ *          fog 0.75 60 true
+ * 
+ * 
+ * 
+ * Notes:
+ * There is a known bug when setting player speed to a non-integral number
+ * (e.g. 4.5 instead of 4 or 5), where the fog will move along with the player.
+ * 
  */
 
 (() => {
@@ -101,23 +121,72 @@
 
     const WEATHER_TYPE_FOG = "fog";
 
-    let parameters = PluginManager.parameters(PLUGIN_NAME);
+    const parameters = PluginManager.parameters(PLUGIN_NAME);
     parameters.fogQuality = Math.floor(Number(parameters.fogQuality)) || 4;
     parameters.fogSpeed = parameters.fogSpeed === "0" ? 0 : (Number(parameters.fogSpeed) || 2);
     parameters.xScale = Number(parameters.xScale) || 400;
     parameters.yScale = Number(parameters.yScale) || 150;
 
-    PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, function (args) {
+    //=============================================================================
+    // MV compatibility code
+    //=============================================================================
+    if (!Array.remove) { // Backport Array.remove() to MV
+        Array.prototype.remove = function (element) {
+            for (; ;) {
+                const index = this.indexOf(element);
+                if (index >= 0) {
+                    this.splice(index, 1);
+                } else {
+                    return this;
+                }
+            }
+        };
+    }
+
+    function isPIXIv4() { // Uniforms behave differently in PIXIv4 compared to PIXIv5
+        return PIXI.VERSION.split(".")[0] === "4";
+    }
+
+    //=============================================================================
+    // Plugin commands
+    //=============================================================================
+    // CANNOT be an anonymous arrow function, because it requires the correct
+    // Game_Interpreter context when passed through PluginManager.registerCommand()
+    function executePluginCommand(args) {
         const intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
         const fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
         const isWait = args.isWait !== "false";
 
         $gameScreen.changeWeather(WEATHER_TYPE_FOG, intensity, fadeInDuration);
-        if (isWait)
+        if (isWait) {
             this.wait(fadeInDuration);
-    });
+        }
+    };
 
-    let Game_Screen_changeWeather = Game_Screen.prototype.changeWeather;
+    if (PluginManager.registerCommand) {
+        // RPG Maker MZ
+        PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, executePluginCommand);
+    } else {
+        // RPG Maker MV
+        const Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
+        Game_Interpreter.prototype.pluginCommand = (command, args) => {
+            if (command.toLowerCase() === WEATHER_TYPE_FOG) {
+                const arg = {
+                    intensity: args[0],
+                    fadeInDuration: args[1],
+                    isWait: args[2]
+                };
+                executePluginCommand.call(this, arg);
+                return;
+            }
+            Game_Interpreter_pluginCommand.call(this, command, args)
+        };
+    }
+
+    //=============================================================================
+    // Main code
+    //=============================================================================
+    const Game_Screen_changeWeather = Game_Screen.prototype.changeWeather;
     Game_Screen.prototype.changeWeather = function (type, power, duration) {
         const isChangingToFog = type === WEATHER_TYPE_FOG;
         Game_Screen_changeWeather.call(this, isChangingToFog ? "none" : type, power, duration);
@@ -128,7 +197,6 @@
 
     Weather = class Weather_Ext extends Weather {
         get mapSpriteset() { return SceneManager._scene._spriteset; }
-        get mapFilters() { return this.mapSpriteset.filters; }
         get originDelta() {
             return {
                 x: this.origin.x - this.previousOrigin.x,
@@ -142,16 +210,29 @@
         }
 
         updateFog() {
-            if (!this.previousOrigin)
+            if (!this.mapSpriteset) {
+                return;
+            }
+            if (!this.previousOrigin) {
                 this.rememberOrigin();
+            }
 
             this.updateFogUniforms();
             this.rememberOrigin();
 
-            if (!fog.isActive)
-                this.mapFilters.remove(fog.filter)
-            else if (!this.mapFilters.some(f => f === fog.filter))
-                this.mapFilters.push(fog.filter);
+            const filters = this.mapSpriteset.filters;
+            if (!fog.isActive) {
+                if (filters) {
+                    // PIXI.DisplayObject.filters is immutable in v4
+                    this.mapSpriteset.filters = filters.remove(fog.filter);
+                }
+            } else if (!filters) {
+                // PIXI.DisplayObject.filters is immutable in v4
+                this.mapSpriteset.filters = [fog.filter];
+            } else if (!filters.some(f => f === fog.filter)) {
+                // PIXI.DisplayObject.filters is immutable in v4
+                this.mapSpriteset.filters = filters.concat([fog.filter]);
+            }
         }
 
         updateFogUniforms() {
@@ -179,8 +260,9 @@
         correctOriginDelta(posDelta) {
             const tilemap = this.mapSpriteset._tilemap;
             const scale = {
-                x: tilemap?._tileWidth,
-                y: tilemap?._tileHeight
+                // RPG Maker MV's NWJS does not support optional chaining operator
+                x: tilemap ? tilemap._tileWidth : null,
+                y: tilemap ? tilemap._tileHeight : null
             }
             for (const axis of ["x", "y"]) {
                 const dpf = $gamePlayer.distancePerFrame() * scale[axis];
@@ -193,8 +275,16 @@
     }
 
     const fog = new class WeatherFog {
+        get uniforms() { return this.filter.uniforms; }
+
         constructor() {
-            this.uniforms = {
+            this.filter = new PIXI.Filter(null, this.fragment, this.defaultUniformsData);
+            this.targetIntensity = 0;
+            this.fadeDuration = 0;
+        }
+
+        get defaultUniformsData() {
+            const result = {
                 uTime: 0,
                 uOrigin: {
                     x: 0,
@@ -202,9 +292,23 @@
                 },
                 uIntensity: 0
             };
-            this.filter = new PIXI.Filter(null, this.fragment, this.uniforms);
-            this.targetIntensity = 0;
-            this.fadeDuration = 0;
+
+            if (isPIXIv4()) {
+                result.uTime = {
+                    type: "float",
+                    value: result.uTime
+                };
+                result.uOrigin = {
+                    type: "vec2",
+                    value: result.uOrigin
+                };
+                result.uIntensity = {
+                    type: "float",
+                    value: result.uIntensity
+                }
+            }
+
+            return result;
         }
 
         get isActive() {
