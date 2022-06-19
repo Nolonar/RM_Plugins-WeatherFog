@@ -31,6 +31,33 @@
  * @author Nolonar
  * @url https://github.com/Nolonar/RM_Plugins
  * 
+ * 
+ * @command fog
+ * @text Fog
+ * @desc Changes current weather to fog. Use the "Set Weather Effect..." event command to remove the fog again.
+ * 
+ * @arg intensity
+ * @text Intensity
+ * @desc The intensity of the fog. 0 = invisible, 1 = visible. Values over 1 are possible, but not recommended.
+ * @type number
+ * @min 0
+ * @decimals 3
+ * @default 0.75
+ * 
+ * @arg fadeInDuration
+ * @text Fade-in duration
+ * @desc How many frames until the fog is at full intensity.
+ * @type number
+ * @min 0
+ * @default 60
+ * 
+ * @arg isWait
+ * @text Wait for completion
+ * @desc If ON, event will wait until fog is at full intensity before resuming.
+ * @type boolean
+ * @default true
+ * 
+ * 
  * @param fogQuality
  * @text Fog quality
  * @desc The quality of the fog (1-8). Higher values improve quality but may reduce performance.
@@ -61,33 +88,8 @@
  * @min 1
  * @default 150
  * 
- * @command fog
- * @text Fog
- * @desc Changes current weather to fog. Use the "Set Weather Effect..." event command to remove the fog again.
  * 
- * @arg intensity
- * @text Intensity
- * @desc The intensity of the fog. 0 = invisible, 1 = visible. Values over 1 are possible, but not recommended.
- * @type number
- * @min 0
- * @decimals 3
- * @default 0.75
- * 
- * @arg fadeInDuration
- * @text Fade-in duration
- * @desc How many frames until the fog is at full intensity.
- * @type number
- * @min 0
- * @default 60
- * 
- * @arg isWait
- * @text Wait for completion
- * @desc If ON, event will wait until fog is at full intensity before resuming.
- * @type boolean
- * @default true
- * 
- * 
- * @help Version 1.3.1
+ * @help Version 1.3.2
  * ============================================================================
  * Plugin Commands
  * ============================================================================

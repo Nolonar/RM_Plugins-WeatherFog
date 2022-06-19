@@ -14,7 +14,7 @@ Adds procedurally generated fog weather effect.
 
 ## Compatibility
 Tested and confirmed working:
-- RPG Maker MV ([1.3.1][release_1_3_1] only; newer versions might work, but are untested)
+- RPG Maker MV ([1.3.2][release_1_3_2] only; newer versions might work, but are untested)
 - RPG Maker MZ
 
 ## Terms of Use
@@ -23,4 +23,4 @@ According to [LICENSE](LICENSE).
 
   [hub]: https://github.com/Nolonar/RM_Plugins
   [release]: https://github.com/Nolonar/RM_Plugins-WeatherFog/releases/latest/download/N_WeatherFog.js
-  [release_1_3_1]: https://github.com/Nolonar/RM_Plugins-Pixelate/releases/tag/v1.3.1
+  [release_1_3_2]: https://github.com/Nolonar/RM_Plugins-Pixelate/releases/tag/v1.3.2
