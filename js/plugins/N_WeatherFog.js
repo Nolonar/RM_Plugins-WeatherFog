@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * Copyright (c) 2020 Nolonar
+ * Copyright (c) 2022 Nolonar
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -89,7 +89,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.3.2
+ * @help Version 1.3.3
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -184,6 +184,33 @@
             Game_Interpreter_pluginCommand.call(this, command, args)
         };
     }
+
+    //=============================================================================
+    // DataManager
+    //=============================================================================
+    const DataManager_makeSaveContents = DataManager.makeSaveContents;
+    DataManager.makeSaveContents = function () {
+        const result = DataManager_makeSaveContents.call(this);
+        result[PLUGIN_NAME] = {
+            uOriginX: fog.uniforms.uOrigin.x,
+            uOriginY: fog.uniforms.uOrigin.y,
+            uIntensity: fog.uniforms.uIntensity,
+            targetIntensity: fog.targetIntensity,
+            fadeDuration: fog.fadeDuration
+        };
+        return result;
+    };
+    const DataManager_extractSaveContents = DataManager.extractSaveContents;
+    DataManager.extractSaveContents = function (contents) {
+        DataManager_extractSaveContents.call(this, contents);
+
+        const fogData = contents[PLUGIN_NAME];
+        fog.uniforms.uOrigin.x = fogData.uOriginX;
+        fog.uniforms.uOrigin.y = fogData.uOriginY;
+        fog.uniforms.uIntensity = fogData.uIntensity;
+        fog.targetIntensity = fogData.targetIntensity;
+        fog.fadeDuration = fogData.fadeDuration;
+    };
 
     //=============================================================================
     // Main code
