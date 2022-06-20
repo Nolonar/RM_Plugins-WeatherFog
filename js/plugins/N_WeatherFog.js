@@ -213,6 +213,15 @@
     };
 
     //=============================================================================
+    // Scene_GameEnd
+    //=============================================================================
+    const Scene_GameEnd_commandToTitle = Scene_GameEnd.prototype.commandToTitle;
+    Scene_GameEnd.prototype.commandToTitle = function () {
+        $gameScreen.clearWeather();
+        Scene_GameEnd_commandToTitle.call(this);
+    };
+
+    //=============================================================================
     // Main code
     //=============================================================================
     const Game_Screen_changeWeather = Game_Screen.prototype.changeWeather;
@@ -222,6 +231,14 @@
 
         fog.targetIntensity = isChangingToFog ? power : 0;
         fog.fadeDuration = isChangingToFog || fog.isActive ? duration : 0;
+    }
+
+    const Game_Screen_clearWeather = Game_Screen.prototype.clearWeather;
+    Game_Screen.prototype.clearWeather = function () {
+        Game_Screen_clearWeather.call(this);
+
+        fog.targetIntensity = 0;
+        fog.fadeDuration = 0;
     }
 
     Weather = class Weather_Ext extends Weather {
