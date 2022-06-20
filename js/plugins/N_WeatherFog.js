@@ -89,7 +89,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.3.3
+ * @help Version 1.3.4
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -184,33 +184,6 @@
             Game_Interpreter_pluginCommand.call(this, command, args)
         };
     }
-
-    //=============================================================================
-    // DataManager
-    //=============================================================================
-    const DataManager_makeSaveContents = DataManager.makeSaveContents;
-    DataManager.makeSaveContents = function () {
-        const result = DataManager_makeSaveContents.call(this);
-        result[PLUGIN_NAME] = {
-            uOriginX: fog.uniforms.uOrigin.x,
-            uOriginY: fog.uniforms.uOrigin.y,
-            uIntensity: fog.uniforms.uIntensity,
-            targetIntensity: fog.targetIntensity,
-            fadeDuration: fog.fadeDuration
-        };
-        return result;
-    };
-    const DataManager_extractSaveContents = DataManager.extractSaveContents;
-    DataManager.extractSaveContents = function (contents) {
-        DataManager_extractSaveContents.call(this, contents);
-
-        const fogData = contents[PLUGIN_NAME];
-        fog.uniforms.uOrigin.x = fogData.uOriginX;
-        fog.uniforms.uOrigin.y = fogData.uOriginY;
-        fog.uniforms.uIntensity = fogData.uIntensity;
-        fog.targetIntensity = fogData.targetIntensity;
-        fog.fadeDuration = fogData.fadeDuration;
-    };
 
     //=============================================================================
     // Scene_GameEnd
@@ -322,12 +295,29 @@
 
     const fog = new class WeatherFog {
         get uniforms() { return this.filter.uniforms; }
+        get _data() {
+            if (!$gameScreen) {
+                return this.defaultData;
+            }
+
+            if (!$gameScreen[PLUGIN_NAME]) {
+                $gameScreen[PLUGIN_NAME] = this.defaultData;
+            }
+
+            return $gameScreen[PLUGIN_NAME];
+        }
+
+        get targetIntensity() { return this._data.targetIntensity; }
+        set targetIntensity(intensity) { this._data.targetIntensity = intensity; }
+
+        get fadeDuration() { return this._data.fadeDuration; }
+        set fadeDuration(duration) { this._data.fadeDuration = duration; }
 
         constructor() {
             this.filter = new PIXI.Filter(null, this.fragment, this.defaultUniformsData);
-            this.targetIntensity = 0;
-            this.fadeDuration = 0;
         }
+
+        get defaultData() { return { targetIntensity: 0, fadeDuration: 0 }; }
 
         get defaultUniformsData() {
             const result = {

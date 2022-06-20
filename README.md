@@ -23,4 +23,4 @@ According to [LICENSE](LICENSE).
 
   [hub]: https://github.com/Nolonar/RM_Plugins
   [release]: https://github.com/Nolonar/RM_Plugins-WeatherFog/releases/latest/download/N_WeatherFog.js
-  [release_1_3_2]: https://github.com/Nolonar/RM_Plugins-WeatherFog/releases/tag/v1.3.2
+  [release_1_3_4]: https://github.com/Nolonar/RM_Plugins-WeatherFog/releases/download/v1.3.4/N_WeatherFog.js
