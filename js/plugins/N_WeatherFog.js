@@ -134,8 +134,7 @@
  * Plugin Commands
  * ============================================================================
  * fog [intensity] [fadeInDuration] [wait]
- *      Changes current weather to fog. Use the "Set Weather Effect..." event
- *      command to remove the fog again.
+ *      Adds fog to current weather.
  * 
  *     [intensity]: The intensity of the fog. 0 = invisible, 1 = visible.
  *                  Values over 1 are possible, but not recommended.
@@ -151,16 +150,36 @@
  * 
  *     Examples:
  *          fog 0.75 60 true
- * 
  *                  Creates a very thick fog (0.75) that will take 60 frames
  *                  (1 second) to reach full intensity. The event will resume
  *                  afterwards. The player can't move during that time.
  * 
  *          fog 0.3 600 false
- * 
  *                  Creates a light fog (0.3) that will take 600 frames (10
  *                  seconds) to reach full intensity. The event will continue
  *                  while the fog is growing. Meanwhile, the player can move.
+ * 
+ * 
+ * removeFog [fadeOutDuration] [wait]
+ *      Removes fog from current weather.
+ * 
+ *     [fadeOutDuration]: How many frames until the fog isfully gone.
+ *                        Must be greater or equal to 0.
+ * 
+ *     [wait]:      If true, the event will wait for [fadeOutDuration] before
+ *                  continuing. The player won't be able to move until then.
+ *                  If false, the event will continue while the fog disappears.
+ *                  The player will be able to move in the meanwhile.
+ * 
+ *     Examples:
+ *          removeFog 60 true
+ *                  Removes fog in 60 frames (1 second). The event will resume
+ *                  afterwards. The player can't move during that time.
+ * 
+ *          removeFog 600 false
+ *                  Removes fog in 600 frames (10 seconds). The event will
+ *                  resume while the fog disappears. The player can move during
+ *                  that time.
  * 
  * 
  * 
