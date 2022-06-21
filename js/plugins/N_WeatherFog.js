@@ -33,8 +33,8 @@
  * 
  * 
  * @command fog
- * @text Fog
- * @desc Changes current weather to fog. Use the "Set Weather Effect..." event command to remove the fog again.
+ * @text Add fog
+ * @desc Adds fog to the current weather.
  * 
  * @arg intensity
  * @text Intensity
@@ -56,6 +56,25 @@
  * @desc If ON, event will wait until fog is at full intensity before resuming.
  * @type boolean
  * @default true
+ * 
+ * 
+ * @command removeFog
+ * @text Remove fog
+ * @desc Removes fog from current weather
+ * 
+ * @arg fadeOutDuration
+ * @text Fade-out duration
+ * @desc How many frames until the fog is gone.
+ * @type number
+ * @min 0
+ * @default 60
+ * 
+ * @arg isWait
+ * @text Wait for completion
+ * @desc If ON, event will wait until fog is fully gone before resuming.
+ * @type boolean
+ * @default true
+ * 
  * 
  * 
  * @param fogQuality
@@ -89,7 +108,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.3.4
+ * @help Version 1.4.0
  * ============================================================================
  * Plugin Commands
  * ============================================================================
@@ -97,7 +116,7 @@
  *      Changes current weather to fog. Use the "Set Weather Effect..." event
  *      command to remove the fog again.
  * 
- *     [intensity]: The intensity of the fog.  0 = invisible, 1 = visible.
+ *     [intensity]: The intensity of the fog. 0 = invisible, 1 = visible.
  *                  Values over 1 are possible, but not recommended.
  *                  Negative values are not allowed.
  * 
@@ -109,7 +128,7 @@
  *                  If false, the event will continue while the fog appears.
  *                  The player will be able to move in the meanwhile.
  * 
- *     Example:
+ *     Examples:
  *          fog 0.75 60 true
  * 
  *                  Creates a very thick fog (0.75) that will take 60 frames
@@ -133,7 +152,10 @@
 (() => {
     const PLUGIN_NAME = "N_WeatherFog";
 
-    const WEATHER_TYPE_FOG = "fog";
+    const PLUGIN_COMMANDS = {
+        ADD: "fog",
+        REMOVE: "removeFog"
+    };
 
     const parameters = PluginManager.parameters(PLUGIN_NAME);
     parameters.fogQuality = Math.floor(Number(parameters.fogQuality)) || 4;
@@ -166,34 +188,57 @@
     //=============================================================================
     // CANNOT be an anonymous arrow function, because it requires the correct
     // Game_Interpreter context when passed through PluginManager.registerCommand()
-    function executePluginCommand(args) {
+    function executeAddFogPluginCommand(args) {
         const intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
         const fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
         const isWait = args.isWait !== "false";
 
-        $gameScreen.changeWeather(WEATHER_TYPE_FOG, intensity, fadeInDuration);
+        addFog(intensity, fadeInDuration);
         if (isWait) {
             this.wait(fadeInDuration);
         }
     };
 
+    function executeRemoveFogPluginCommand(args) {
+        const fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
+        const isWait = args.isWait !== "false";
+
+        removeFog(fadeInDuration);
+        if (isWait) {
+            this.wait(fadeInDuration);
+        }
+    }
+
     if (PluginManager.registerCommand) {
         // RPG Maker MZ
-        PluginManager.registerCommand(PLUGIN_NAME, WEATHER_TYPE_FOG, executePluginCommand);
+        PluginManager.registerCommand(PLUGIN_NAME, PLUGIN_COMMANDS.ADD, executeAddFogPluginCommand);
+        PluginManager.registerCommand(PLUGIN_NAME, PLUGIN_COMMANDS.REMOVE, executeRemoveFogPluginCommand);
     } else {
         // RPG Maker MV
-        const Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
-        Game_Interpreter.prototype.pluginCommand = function (command, args) {
-            if (command.toLowerCase() === WEATHER_TYPE_FOG) {
-                const arg = {
+        const MvPluginCommands = {
+            [PLUGIN_COMMANDS.ADD.toLowerCase()]: function (args) {
+                executeAddFogPluginCommand.call(this, {
                     intensity: args[0],
                     fadeInDuration: args[1],
                     isWait: args[2]
-                };
-                executePluginCommand.call(this, arg);
-                return;
+                });
+            },
+            [PLUGIN_COMMANDS.REMOVE.toLowerCase()]: function (args) {
+                executeRemoveFogPluginCommand.call(this, {
+                    fadeInDuration: args[0],
+                    isWait: args[1]
+                });
             }
-            Game_Interpreter_pluginCommand.call(this, command, args)
+        };
+
+        const Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
+        Game_Interpreter.prototype.pluginCommand = function (command, args) {
+            const cmd = command.toLowerCase();
+            if (cmd in MvPluginCommands) {
+                MvPluginCommands[cmd].call(this, args);
+            } else {
+                Game_Interpreter_pluginCommand.call(this, command, args);
+            }
         };
     }
 
@@ -209,21 +254,20 @@
     //=============================================================================
     // Main code
     //=============================================================================
-    const Game_Screen_changeWeather = Game_Screen.prototype.changeWeather;
-    Game_Screen.prototype.changeWeather = function (type, power, duration) {
-        const isChangingToFog = type === WEATHER_TYPE_FOG;
-        Game_Screen_changeWeather.call(this, isChangingToFog ? "none" : type, power, duration);
+    function addFog(intensity, duration) {
+        fog.targetIntensity = intensity;
+        fog.fadeDuration = duration;
+    }
 
-        fog.targetIntensity = isChangingToFog ? power : 0;
-        fog.fadeDuration = isChangingToFog || fog.isActive ? duration : 0;
+    function removeFog(duration) {
+        fog.targetIntensity = 0;
+        fog.fadeDuration = duration || 0;
     }
 
     const Game_Screen_clearWeather = Game_Screen.prototype.clearWeather;
     Game_Screen.prototype.clearWeather = function () {
         Game_Screen_clearWeather.call(this);
-
-        fog.targetIntensity = 0;
-        fog.fadeDuration = 0;
+        removeFog();
     }
 
     Weather = class Weather_Ext extends Weather {
