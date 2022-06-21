@@ -38,7 +38,7 @@
  * 
  * @arg intensity
  * @text Intensity
- * @desc The intensity of the fog. 0 = invisible, 1 = bright, -1 = dark.
+ * @desc The intensity of the fog. 0 = invisible, 1 = intense. Higher values possible. Negative values not recommended.
  * @type number
  * @decimals 3
  * @default 0.75
@@ -113,7 +113,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.4.0
+ * @help Version 1.4.1
  * ============================================================================
  * Notetags
  * ============================================================================
@@ -129,7 +129,8 @@
  * 
  *                  [intensity]:
  *                          The intensity of the fog. 0 = invisible,
- *                          1 = bright, -1 = dark.
+ *                          1 = intense. Higher values possible. Negative
+ *                          values not recommended.
  * 
  *                  [color]: (optional)
  *                          The color of the fog. Supports CSS colors:
@@ -156,8 +157,8 @@
  * fog [intensity] [fadeInDuration] [wait] [color]
  *      Adds fog to current weather.
  * 
- *     [intensity]: The intensity of the fog. 0 = invisible, 1 = bright,
- *                  -1 = dark.
+ *     [intensity]: The intensity of the fog. 0 = invisible, 1 = intense.
+ *                  Higher values possible. Negative values not recommended.
  * 
  *     [fadeInDuration]: How many frames until the fog is at full intensity.
  *                       Must be greater or equal to 0.
@@ -174,7 +175,7 @@
  * 
  *     Examples:
  *          fog 0.75 60 true
- *                  Creates a very thick white fog that will take 60 frames
+ *                  Creates a thick white fog that will take 60 frames
  *                  (1 second) to reach full intensity. The event will resume
  *                  afterwards. The player can't move during that time.
  * 
@@ -260,14 +261,13 @@
 
     const MetaCommands = {
         [METATAGS.FOG_ON]: (meta) => {
+            const targetColor = fog.targetColor.slice(0, 3);
+
             const args = meta.trim().replace(/\s+/g, " ").split(" ");
             const intensity = Number(args[0]);
-            const color = args[1] ? parseCSSColor(args.slice(1)).concat(fog.targetColor[3]) : fog.targetColor;
-            if (!Number.isNaN(intensity)) {
-                color[3] = intensity;
-            }
+            const color = args[1] ? parseCSSColor(args.slice(1)) : targetColor;
 
-            return color;
+            return color.concat(intensity || targetColor[3]);
         },
         [METATAGS.FOG_OFF]: () => fog.targetColor.slice(0, 3).concat(0)
     };
@@ -607,10 +607,11 @@
             void main() {
                 vec4 sample = texture2D(uSampler, vTextureCoord);
                 vec2 coord = gl_FragCoord.xy + uOrigin;
-                float onoiseValue = (onoise(vec3(coord / noiseScale, uTime)) + 1.0) / 2.0;
-                vec4 noise = vec4(uBaseColor.rgb * onoiseValue, 1.0);
 
-                gl_FragColor = sample + noise * uBaseColor.a;
+                float noise = uBaseColor.a * (onoise(vec3(coord / noiseScale, uTime)) + 1.0) / 2.0;
+                vec4 x = vec4(uBaseColor.rgb * noise, 1.0);
+
+                gl_FragColor = sample * (1.0 - noise) + vec4(uBaseColor.rgb, 1.0) * noise;
             }`;
         }
     }();
