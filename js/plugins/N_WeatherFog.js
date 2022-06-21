@@ -110,6 +110,27 @@
  * 
  * @help Version 1.4.0
  * ============================================================================
+ * Notetags
+ * ============================================================================
+ * Map notetags:
+ *      <fog: 0>
+ *                  Fog does not render on this map. Useful to avoid disabling
+ *                  the fog and re-enabling it for indoor maps.
+ * 
+ *      <fog: [intensity]>
+ *                  Fog is always active on this map. Useful to avoid enabling
+ *                  the fog and disabling it again for maps where it's always
+ *                  foggy.
+ * 
+ *                  [intensity] is a number. 0 = invisible, 1 = visible. Values
+ *                  above 1 are possible, but not recommended. Negative values
+ *                  are not allowed.
+ * 
+ *                  Example:
+ *                      <fog: 0.3>
+ * 
+ * 
+ * ============================================================================
  * Plugin Commands
  * ============================================================================
  * fog [intensity] [fadeInDuration] [wait]
@@ -155,6 +176,9 @@
     const PLUGIN_COMMANDS = {
         ADD: "fog",
         REMOVE: "removeFog"
+    };
+    const METATAGS = {
+        FOG: "fog"
     };
 
     const parameters = PluginManager.parameters(PLUGIN_NAME);
@@ -316,13 +340,31 @@
             fog.uniforms.uTime = performance.now() / 1000 * parameters.fogSpeed;
             fog.uniforms.uOrigin.x += posDelta.x;
             fog.uniforms.uOrigin.y += posDelta.y;
-            fog.uniforms.uIntensity = fog.fadeDuration ? this.getFogIntensity() : fog.targetIntensity;
+            fog.uniforms.uIntensity = this.getFogIntensity();
         }
 
         getFogIntensity() {
+            const meta = $dataMap.meta[METATAGS.FOG];
+            if (meta) {
+                return this.getFogIntensityFromMeta(meta.trim().toLowerCase());
+            }
+
+            if (fog.fadeDuration === 0) {
+                return fog.targetIntensity;
+            }
+
             const d = fog.fadeDuration--;
             const t = fog.targetIntensity;
             return (fog.uniforms.uIntensity * (d - 1) + t) / d;
+        }
+
+        getFogIntensityFromMeta(meta) {
+            const intensity = Number(meta);
+            if (!Number.isNaN(intensity)) {
+                return intensity;
+            }
+
+            return fog.targetIntensity;
         }
 
         rememberOrigin() {
