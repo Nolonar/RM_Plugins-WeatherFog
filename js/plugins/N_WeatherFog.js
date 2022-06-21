@@ -239,6 +239,8 @@
     parameters.xScale = Number(parameters.xScale) || 400;
     parameters.yScale = Number(parameters.yScale) || 150;
 
+    const isPIXIv4 = PIXI.VERSION.split(".")[0] === "4"; // MV compatibility
+
     function parseCSSColor(colorString, defaultColor) {
         const div = document.createElement("div");
         div.style.display = "none";
@@ -269,26 +271,6 @@
         },
         [METATAGS.FOG_OFF]: () => fog.targetColor.slice(0, 3).concat(0)
     };
-
-    //=============================================================================
-    // MV compatibility code
-    //=============================================================================
-    if (!Array.remove) { // Backport Array.remove() to MV
-        Array.prototype.remove = function (element) {
-            for (; ;) {
-                const index = this.indexOf(element);
-                if (index >= 0) {
-                    this.splice(index, 1);
-                } else {
-                    return this;
-                }
-            }
-        };
-    }
-
-    function isPIXIv4() { // Uniforms behave differently in PIXIv4 compared to PIXIv5
-        return PIXI.VERSION.split(".")[0] === "4";
-    }
 
     //=============================================================================
     // Plugin commands
@@ -408,7 +390,7 @@
             if (!fog.isActive) {
                 if (filters) {
                     // PIXI.DisplayObject.filters is immutable in v4
-                    this.mapSpriteset.filters = filters.remove(fog.filter);
+                    this.mapSpriteset.filters = filters.filter(f => f !== fog.filter);
                 }
             } else if (!filters) {
                 // PIXI.DisplayObject.filters is immutable in v4
@@ -520,7 +502,8 @@
                 uBaseColor: [1, 1, 1, 0]
             };
 
-            if (isPIXIv4()) {
+            // Uniforms are defined differently in PIXIv4 compared to PIXIv5
+            if (isPIXIv4) {
                 result.uTime = {
                     type: "float",
                     value: result.uTime
