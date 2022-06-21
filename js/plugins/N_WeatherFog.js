@@ -38,9 +38,8 @@
  * 
  * @arg intensity
  * @text Intensity
- * @desc The intensity of the fog. 0 = invisible, 1 = visible. Values over 1 are possible, but not recommended.
+ * @desc The intensity of the fog. 0 = invisible, 1 = bright, -1 = dark.
  * @type number
- * @min 0
  * @decimals 3
  * @default 0.75
  * 
@@ -56,6 +55,12 @@
  * @desc If ON, event will wait until fog is at full intensity before resuming.
  * @type boolean
  * @default true
+ * 
+ * @arg color
+ * @text Color
+ * @desc The color of the fog. Supports CSS colors: https://www.w3schools.com/colors/default.asp
+ * @type string
+ * @default white
  * 
  * 
  * @command removeFog
@@ -113,32 +118,46 @@
  * Notetags
  * ============================================================================
  * Map notetags:
- *      <fog: 0>
- *                  Fog does not render on this map. Useful to avoid disabling
+ *      <noFog>
+ *                  Fog is never active on this map. Useful to avoid disabling
  *                  the fog and re-enabling it for indoor maps.
  * 
- *      <fog: [intensity]>
+ *      <fog: [intensity] [color]>
  *                  Fog is always active on this map. Useful to avoid enabling
  *                  the fog and disabling it again for maps where it's always
  *                  foggy.
  * 
- *                  [intensity] is a number. 0 = invisible, 1 = visible. Values
- *                  above 1 are possible, but not recommended. Negative values
- *                  are not allowed.
+ *                  [intensity]:
+ *                          The intensity of the fog. 0 = invisible,
+ *                          1 = bright, -1 = dark.
+ * 
+ *                  [color]: (optional)
+ *                          The color of the fog. Supports CSS colors:
+ *                          https://www.w3schools.com/colors/default.asp
+ *                          Default color is white.
  * 
  *                  Example:
  *                      <fog: 0.3>
+ *                          The map always has a white fog with 0.3 intensity.
+ * 
+ *                      <fog: 0.6 red>
+ *                          The map always has a red fog with 0.6 intensity.
+ * 
+ *                      <fog: 0.4 #00FF00>
+ *                          The map always has a green fog with 0.4 intensity.
+ * 
+ *                      <fog: 0.1 rgb(0, 0, 255)>
+ *                          The map always has a blue fog with 0.1 intensity.
  * 
  * 
  * ============================================================================
  * Plugin Commands
  * ============================================================================
- * fog [intensity] [fadeInDuration] [wait]
+ * fog [intensity] [fadeInDuration] [wait] [color]
  *      Adds fog to current weather.
  * 
- *     [intensity]: The intensity of the fog. 0 = invisible, 1 = visible.
- *                  Values over 1 are possible, but not recommended.
- *                  Negative values are not allowed.
+ *     [intensity]: The intensity of the fog. 0 = invisible, 1 = bright,
+ *                  -1 = dark.
  * 
  *     [fadeInDuration]: How many frames until the fog is at full intensity.
  *                       Must be greater or equal to 0.
@@ -148,16 +167,30 @@
  *                  If false, the event will continue while the fog appears.
  *                  The player will be able to move in the meanwhile.
  * 
+ *     [color]: (optional)
+ *                  The color of the fog. Supports CSS colors:
+ *                  https://www.w3schools.com/colors/default.asp
+ *                  Default color is white.
+ * 
  *     Examples:
  *          fog 0.75 60 true
- *                  Creates a very thick fog (0.75) that will take 60 frames
+ *                  Creates a very thick white fog that will take 60 frames
  *                  (1 second) to reach full intensity. The event will resume
  *                  afterwards. The player can't move during that time.
  * 
  *          fog 0.3 600 false
- *                  Creates a light fog (0.3) that will take 600 frames (10
+ *                  Creates a light white fog that will take 600 frames (10
  *                  seconds) to reach full intensity. The event will continue
  *                  while the fog is growing. Meanwhile, the player can move.
+ * 
+ *          fog 0.3 0 false #FF0000
+ *                  Immediately creates a light red fog.
+ * 
+ *          fog 0.6 0 false green
+ *                  Immediately creates a thick green fog.
+ * 
+ *          fog 0.3 0 false rgb(0, 0, 255)
+ *                  Immediately creates a light blue fog.
  * 
  * 
  * removeFog [fadeOutDuration] [wait]
@@ -182,7 +215,6 @@
  *                  that time.
  * 
  * 
- * 
  * Notes:
  * There is a known bug when setting player speed to a non-integral number
  * (e.g. 4.5 instead of 4 or 5), where the fog will move along with the player.
@@ -197,7 +229,8 @@
         REMOVE: "removeFog"
     };
     const METATAGS = {
-        FOG: "fog"
+        FOG_ON: "fog",
+        FOG_OFF: "noFog"
     };
 
     const parameters = PluginManager.parameters(PLUGIN_NAME);
@@ -205,6 +238,37 @@
     parameters.fogSpeed = parameters.fogSpeed === "0" ? 0 : (Number(parameters.fogSpeed) || 2);
     parameters.xScale = Number(parameters.xScale) || 400;
     parameters.yScale = Number(parameters.yScale) || 150;
+
+    function parseCSSColor(colorString, defaultColor) {
+        const div = document.createElement("div");
+        div.style.display = "none";
+        div.style.color = defaultColor; //If colorString is invalid, this color will be used.
+        div.style.color = colorString || defaultColor; // Empty string defaults to black.
+        document.body.appendChild(div); // Required for getComputedStyle()
+        const result = getComputedStyle(div).color.match(/[\.\d]+/g).slice(0, 3).map(v => Number(v) / 255);
+        div.remove();
+
+        return result;
+    }
+
+    function getMetaTag() {
+        const tag = Object.values(METATAGS).find(t => t in $dataMap.meta);
+        return tag ? [tag, $dataMap.meta[tag]] : null;
+    }
+
+    const MetaCommands = {
+        [METATAGS.FOG_ON]: (meta) => {
+            const args = meta.trim().replace(/\s+/g, " ").split(" ");
+            const intensity = Number(args[0]);
+            const color = args[1] ? parseCSSColor(args.slice(1)).concat(fog.targetColor[3]) : fog.targetColor;
+            if (!Number.isNaN(intensity)) {
+                color[3] = intensity;
+            }
+
+            return color;
+        },
+        [METATAGS.FOG_OFF]: () => fog.targetColor.slice(0, 3).concat(0)
+    };
 
     //=============================================================================
     // MV compatibility code
@@ -233,10 +297,11 @@
     // Game_Interpreter context when passed through PluginManager.registerCommand()
     function executeAddFogPluginCommand(args) {
         const intensity = args.intensity === "0" ? 0 : (Number(args.intensity) || 0.75);
+        const color = parseCSSColor(args.color, "white");
         const fadeInDuration = args.fadeInDuration === "0" ? 0 : (Number(args.fadeInDuration) || 60);
         const isWait = args.isWait !== "false";
 
-        addFog(intensity, fadeInDuration);
+        addFog(color.concat(intensity), fadeInDuration);
         if (isWait) {
             this.wait(fadeInDuration);
         }
@@ -263,7 +328,8 @@
                 executeAddFogPluginCommand.call(this, {
                     intensity: args[0],
                     fadeInDuration: args[1],
-                    isWait: args[2]
+                    isWait: args[2],
+                    color: args.slice(3).join("")
                 });
             },
             [PLUGIN_COMMANDS.REMOVE.toLowerCase()]: function (args) {
@@ -297,13 +363,13 @@
     //=============================================================================
     // Main code
     //=============================================================================
-    function addFog(intensity, duration) {
-        fog.targetIntensity = intensity;
+    function addFog(color, duration) {
+        fog.targetColor = color;
         fog.fadeDuration = duration;
     }
 
     function removeFog(duration) {
-        fog.targetIntensity = 0;
+        fog.targetColor = fog.targetColor.slice(0, 3).concat(0);
         fog.fadeDuration = duration || 0;
     }
 
@@ -359,31 +425,23 @@
             fog.uniforms.uTime = performance.now() / 1000 * parameters.fogSpeed;
             fog.uniforms.uOrigin.x += posDelta.x;
             fog.uniforms.uOrigin.y += posDelta.y;
-            fog.uniforms.uIntensity = this.getFogIntensity();
+            fog.uniforms.uBaseColor = this.getFogColor();
         }
 
-        getFogIntensity() {
-            const meta = $dataMap.meta[METATAGS.FOG];
-            if (meta) {
-                return this.getFogIntensityFromMeta(meta.trim().toLowerCase());
+        getFogColor() {
+            const metaTag = getMetaTag();
+            if (metaTag !== null) {
+                return MetaCommands[metaTag[0]](metaTag[1]);
             }
 
+            const t = fog.targetColor;
             if (fog.fadeDuration === 0) {
-                return fog.targetIntensity;
+                return t;
             }
 
             const d = fog.fadeDuration--;
-            const t = fog.targetIntensity;
-            return (fog.uniforms.uIntensity * (d - 1) + t) / d;
-        }
-
-        getFogIntensityFromMeta(meta) {
-            const intensity = Number(meta);
-            if (!Number.isNaN(intensity)) {
-                return intensity;
-            }
-
-            return fog.targetIntensity;
+            const b = fog.uniforms.uBaseColor;
+            return t.map((v, i) => (b[i] * (d - 1) + v) / d);
         }
 
         rememberOrigin() {
@@ -424,8 +482,19 @@
             return $gameScreen[PLUGIN_NAME];
         }
 
-        get targetIntensity() { return this._data.targetIntensity; }
-        set targetIntensity(intensity) { this._data.targetIntensity = intensity; }
+        get targetColor() {
+            let result = this._data.targetColor;
+            if (!result) { // Backwards-compatibility with v1.3.4
+                result = this.defaultData.targetColor;
+                result[3] = this._data.targetIntensity;
+                this._data.targetColor = result;
+            }
+            return result;
+        }
+        set targetColor(color) {
+            this._data.targetIntensity = color[3]; // Backwards-compatibility with v1.3.4
+            this._data.targetColor = color;
+        }
 
         get fadeDuration() { return this._data.fadeDuration; }
         set fadeDuration(duration) { this._data.fadeDuration = duration; }
@@ -434,7 +503,12 @@
             this.filter = new PIXI.Filter(null, this.fragment, this.defaultUniformsData);
         }
 
-        get defaultData() { return { targetIntensity: 0, fadeDuration: 0 }; }
+        get defaultData() {
+            return {
+                fadeDuration: 0,
+                targetColor: [1, 1, 1, 0]
+            };
+        }
 
         get defaultUniformsData() {
             const result = {
@@ -443,7 +517,7 @@
                     x: 0,
                     y: 0
                 },
-                uIntensity: 0
+                uBaseColor: [1, 1, 1, 0]
             };
 
             if (isPIXIv4()) {
@@ -455,17 +529,17 @@
                     type: "vec2",
                     value: result.uOrigin
                 };
-                result.uIntensity = {
-                    type: "float",
-                    value: result.uIntensity
-                }
+                result.uBaseColor = {
+                    type: "vec4",
+                    value: result.uBaseColor
+                };
             }
 
             return result;
         }
 
         get isActive() {
-            return !!this.uniforms.uIntensity;
+            return !!this.uniforms.uBaseColor[3];
         }
 
         get fragment() {
@@ -478,7 +552,7 @@
 
             uniform float uTime;
             uniform vec2 uOrigin;
-            uniform float uIntensity;
+            uniform vec4 uBaseColor;
 
             const int octaves = ${parameters.fogQuality};
             const vec2 noiseScale = vec2(${parameters.xScale}, ${parameters.yScale});
@@ -550,9 +624,10 @@
             void main() {
                 vec4 sample = texture2D(uSampler, vTextureCoord);
                 vec2 coord = gl_FragCoord.xy + uOrigin;
-                vec4 noise = vec4(vec3((onoise(vec3(coord / noiseScale, uTime)) + 1.0) / 2.0), 1.0);
+                float onoiseValue = (onoise(vec3(coord / noiseScale, uTime)) + 1.0) / 2.0;
+                vec4 noise = vec4(uBaseColor.rgb * onoiseValue, 1.0);
 
-                gl_FragColor = sample + noise * uIntensity;
+                gl_FragColor = sample + noise * uBaseColor.a;
             }`;
         }
     }();
