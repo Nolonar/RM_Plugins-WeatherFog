@@ -113,7 +113,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.4.1
+ * @help Version 1.4.2
  * ============================================================================
  * Notetags
  * ============================================================================
@@ -255,7 +255,7 @@
     }
 
     function getMetaTag() {
-        const tag = Object.values(METATAGS).find(t => t in $dataMap.meta);
+        const tag = $dataMap ? Object.values(METATAGS).find(t => t in $dataMap.meta) : null;
         return tag ? [tag, $dataMap.meta[tag]] : null;
     }
 
