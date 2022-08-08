@@ -113,7 +113,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.4.2
+ * @help Version 1.4.3
  * ============================================================================
  * Notetags
  * ============================================================================
@@ -403,6 +403,9 @@
 
         updateFogUniforms() {
             const posDelta = this.correctOriginDelta(this.originDelta);
+            if (Utils.RPGMAKER_NAME == "MV") {
+                posDelta.y *= -1; // TODO: investigate why y-coordinate needs to be inverted for RPG Maker MV.
+            }
 
             fog.uniforms.uTime = performance.now() / 1000 * parameters.fogSpeed;
             fog.uniforms.uOrigin.x += posDelta.x;
