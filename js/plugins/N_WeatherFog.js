@@ -113,7 +113,7 @@
  * @default 150
  * 
  * 
- * @help Version 1.4.3
+ * @help Version 1.4.4
  * ============================================================================
  * Notetags
  * ============================================================================
@@ -255,7 +255,7 @@
     }
 
     function getMetaTag() {
-        const tag = $dataMap ? Object.values(METATAGS).find(t => t in $dataMap.meta) : null;
+        const tag = $dataMap && $dataMap.meta ? Object.values(METATAGS).find(t => t in $dataMap.meta) : null;
         return tag ? [tag, $dataMap.meta[tag]] : null;
     }
 
@@ -386,18 +386,18 @@
             this.updateFogUniforms();
             this.rememberOrigin();
 
-            const filters = this.mapSpriteset.filters;
+            const sprite = this.mapSpriteset._baseSprite;
             if (!fog.isActive) {
-                if (filters) {
+                if (sprite.filters) {
                     // PIXI.DisplayObject.filters is immutable in v4
-                    this.mapSpriteset.filters = filters.filter(f => f !== fog.filter);
+                    sprite.filters = sprite.filters.filter(f => f !== fog.filter);
                 }
-            } else if (!filters) {
+            } else if (!sprite.filters) {
                 // PIXI.DisplayObject.filters is immutable in v4
-                this.mapSpriteset.filters = [fog.filter];
-            } else if (!filters.some(f => f === fog.filter)) {
+                sprite.filters = [fog.filter];
+            } else if (!sprite.filters.some(f => f === fog.filter)) {
                 // PIXI.DisplayObject.filters is immutable in v4
-                this.mapSpriteset.filters = filters.concat([fog.filter]);
+                sprite.filters = sprite.filters.concat([fog.filter]);
             }
         }
 
